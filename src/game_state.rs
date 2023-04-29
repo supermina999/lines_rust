@@ -134,7 +134,7 @@ impl GameState {
         return result;
 
         fn get_line(game: &GameState, from: (usize, usize), delta: (i32, i32), len: i32) -> Option<Vec<(usize, usize)>> {
-            let to = (from.0 as i32 + delta.0 * len, from.1 as i32 + delta.1 * len);
+            let to = (from.0 as i32 + delta.0 * (len - 1), from.1 as i32 + delta.1 * (len - 1));
             if to.0 < 0 || to.0 >= FIELD_SIZE as i32 || to.1 < 0 || to.1 >= FIELD_SIZE as i32 {
                 return None;
             }
