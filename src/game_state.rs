@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use bevy::prelude::*;
 use rand::Rng;
-use crate::constants::*;
+use crate::common::*;
 
 pub struct FutureCircle {
     pub kind: i32,
@@ -112,7 +112,6 @@ impl GameState {
             path.push(cur);
             cur = p[cur.0][cur.1];
         }
-        path.reverse();
 
         Some(path)
     }

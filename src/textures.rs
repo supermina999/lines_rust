@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::constants::*;
+use crate::common::*;
 
 #[derive(Resource)]
 pub struct Textures {

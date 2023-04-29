@@ -2,12 +2,16 @@ use std::process::exit;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
-mod constants;
-use constants::*;
+mod common;
+use common::*;
 mod textures;
 use textures::*;
+mod components;
+use components::*;
 mod game_state;
 use game_state::*;
+mod animations;
+use animations::*;
 
 fn main() {
     App::new()
@@ -25,20 +29,11 @@ fn main() {
         .add_startup_system(spawn_camera)
         .add_startup_system(spawn_field)
         .add_startup_system(make_initial_turns)
+        .add_system(next_turn)
         .add_system(select_circle)
         .add_system(animate_selected_circle.before(select_circle))
+        .add_system(move_animation)
         .run();
-}
-
-fn get_cell_size() -> f32 {
-    WINDOW_WIDTH / FIELD_SIZE as f32
-}
-
-fn get_cell_coords(row: usize, col: usize) -> (f32, f32) {
-    let cell_size = WINDOW_WIDTH / FIELD_SIZE as f32;
-    let x = -WINDOW_WIDTH / 2. + cell_size * (col as f32 + 0.5);
-    let y = -WINDOW_HEIGHT / 2. + cell_size * (row as f32 + 0.5);
-    (x, y)
 }
 
 fn spawn_camera(mut commands: Commands) {
@@ -63,15 +58,6 @@ fn spawn_field(mut commands: Commands, textures: Res<Textures>) {
     }
 }
 
-#[derive(Component)]
-struct CircleComponent {
-    row: usize,
-    col: usize
-}
-
-#[derive(Component)]
-struct FutureCircleComponent;
-
 fn make_initial_turns(mut commands: Commands,
              query: Query<(Entity, &FutureCircleComponent)>,
              mut game_state: ResMut<GameState>,
@@ -80,11 +66,17 @@ fn make_initial_turns(mut commands: Commands,
     next_turn_impl(&mut commands, &query, &mut game_state, &textures, true);
 }
 
-fn next_turn(commands: &mut Commands,
-             query: &Query<(Entity, &FutureCircleComponent)>,
-             game_state: &mut ResMut<GameState>,
-             textures: &Res<Textures>) {
-    next_turn_impl(commands, query, game_state, textures, true);
+fn next_turn(mut commands: Commands,
+             next_turn_query: Query<(Entity, &NextTurnComponent)>,
+             query: Query<(Entity, &FutureCircleComponent)>,
+             mut game_state: ResMut<GameState>,
+             textures: Res<Textures>) {
+    let next_turn_entity = match next_turn_query.get_single() {
+        Ok((entity, _)) => entity,
+        Err(_) => return
+    };
+    next_turn_impl(&mut commands, &query, &mut game_state, &textures, true);
+    commands.entity(next_turn_entity).despawn();
 }
 
 fn next_turn_impl(commands: &mut Commands,
@@ -142,19 +134,10 @@ fn next_turn_impl(commands: &mut Commands,
     }
 }
 
-#[derive(Component)]
-struct SelectedCircleComponent {
-    row: usize,
-    col: usize,
-    anim_time: f32
-}
-
 fn select_circle(mut commands: Commands,
                  query: Query<(Entity, &CircleComponent), Without<SelectedCircleComponent>>,
                  mut query_selected: Query<(Entity, &mut Sprite, &mut Transform, &mut CircleComponent), With<SelectedCircleComponent>>,
-                 query_future: Query<(Entity, &FutureCircleComponent)>,
                  mut game_state: ResMut<GameState>,
-                 textures: Res<Textures>,
                  window_query: Query<&Window>,
                  mouse_button: Res<Input<MouseButton>>) {
     if !mouse_button.just_pressed(MouseButton::Left) {
@@ -208,43 +191,11 @@ fn select_circle(mut commands: Commands,
     game_state.cells[new_row][new_col] = game_state.cells[sel_circle.row][sel_circle.col];
     game_state.cells[sel_circle.row][sel_circle.col] = CellState(-1);
     sel_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
-    (sel_transform.translation.x, sel_transform.translation.y) = get_cell_coords(new_row, new_col);
+    (sel_transform.translation.x, sel_transform.translation.y) = get_cell_coords(sel_circle.row, sel_circle.col);
     (sel_circle.row, sel_circle.col) = (new_row, new_col);
     commands.entity(sel_entity).remove::<SelectedCircleComponent>();
-
-    next_turn(&mut commands, &query_future, &mut game_state, &textures);
-}
-
-fn animate_selected_circle(mut query: Query<(&mut SelectedCircleComponent, &mut Sprite, &mut Transform)>,
-                           time: Res<Time>) {
-    let (mut circle, mut sprite, mut transform) = match query.get_single_mut() {
-        Ok(val) => val,
-        Err(_) => return
-    };
-
-    circle.anim_time += time.delta_seconds() * 5.;
-    circle.anim_time -= (circle.anim_time / 4.).floor() * 4.;
-
-    let dh: f32;
-    let dy: f32;
-    if circle.anim_time <= 1. {
-        dh = -circle.anim_time * 0.3;
-        dy = dh / 2.;
-    }
-    else if circle.anim_time <= 2. {
-        dh = -(2. - circle.anim_time) * 0.3;
-        dy = dh / 2.;
-    }
-    else if circle.anim_time <= 3. {
-        dh = -(circle.anim_time - 2.) * 0.3;
-        dy = -dh / 2.;
-    }
-    else {
-        dh = -(4. - circle.anim_time) * 0.3;
-        dy = -dh / 2.;
-    }
-
-    let cell_size = get_cell_size();
-    sprite.custom_size = Some(Vec2::new(sprite.custom_size.unwrap().x, cell_size * 0.8 + dh * cell_size * 0.8));
-    transform.translation.y = get_cell_coords(circle.row, circle.col).1 + dy * cell_size * 0.8;
+    commands.entity(sel_entity).insert(MoveAnimationComponent {
+        path: path.unwrap(),
+        anim_time: 0.
+    });
 }
