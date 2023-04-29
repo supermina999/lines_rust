@@ -24,3 +24,11 @@ pub struct MoveAnimationComponent {
     pub path: Vec<(usize, usize)>,
     pub anim_time: f32
 }
+
+#[derive(Component)]
+pub struct DisappearComponent;
+
+#[derive(Component)]
+pub struct DisappearAnimationComponent {
+    pub anim_time: f32
+}

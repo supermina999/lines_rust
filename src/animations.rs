@@ -9,36 +9,35 @@ pub fn animate_selected_circle(mut query: Query<(&mut SelectedCircleComponent, &
         Err(_) => return
     };
 
-    circle.anim_time += time.delta_seconds() * 5.;
+    circle.anim_time += time.delta_seconds() / CIRCLE_BOUNCE_TIME;
     circle.anim_time -= (circle.anim_time / 4.).floor() * 4.;
 
     let dh: f32;
     let dy: f32;
     if circle.anim_time <= 1. {
-        dh = -circle.anim_time * 0.3;
+        dh = -circle.anim_time * CIRCLE_BOUNCE_SCALE;
         dy = dh / 2.;
     }
     else if circle.anim_time <= 2. {
-        dh = -(2. - circle.anim_time) * 0.3;
+        dh = -(2. - circle.anim_time) * CIRCLE_BOUNCE_SCALE;
         dy = dh / 2.;
     }
     else if circle.anim_time <= 3. {
-        dh = -(circle.anim_time - 2.) * 0.3;
+        dh = -(circle.anim_time - 2.) * CIRCLE_BOUNCE_SCALE;
         dy = -dh / 2.;
     }
     else {
-        dh = -(4. - circle.anim_time) * 0.3;
+        dh = -(4. - circle.anim_time) * CIRCLE_BOUNCE_SCALE;
         dy = -dh / 2.;
     }
 
-    let cell_size = get_cell_size();
-    sprite.custom_size = Some(Vec2::new(sprite.custom_size.unwrap().x, cell_size * 0.8 + dh * cell_size * 0.8));
-    transform.translation.y = get_cell_coords(circle.row, circle.col).1 + dy * cell_size * 0.8;
+    sprite.custom_size = Some(Vec2::new(sprite.custom_size.unwrap().x, CIRCLE_SIZE + dh * CIRCLE_SIZE));
+    transform.translation.y = get_cell_coords(circle.row, circle.col).1 + dy * CIRCLE_SIZE;
 }
 
 pub fn move_animation(mut commands: Commands,
-                  mut query: Query<(Entity, &mut MoveAnimationComponent, &mut Transform)>,
-                  time: Res<Time>) {
+                      mut query: Query<(Entity, &mut MoveAnimationComponent, &mut Transform)>,
+                      time: Res<Time>) {
     let (entity, mut anim, mut transform) = match query.get_single_mut() {
         Ok(val) => val,
         Err(_) => return
@@ -68,4 +67,18 @@ pub fn move_animation(mut commands: Commands,
     let cur_pos = (prev_pos.0 * prev_coef + next_pos.0 * next_coef,
                    prev_pos.1 * prev_coef + next_pos.1 * next_coef);
     (transform.translation.x, transform.translation.y) = cur_pos;
+}
+
+pub fn disappear_animation(mut commands: Commands,
+                           mut query: Query<(Entity, &mut DisappearAnimationComponent, &mut Sprite)>,
+                           time: Res<Time>) {
+    for (entity, mut anim, mut sprite) in query.iter_mut() {
+        anim.anim_time += time.delta_seconds();
+        if anim.anim_time >= CIRCLE_DISAPPEAR_TIME {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        let circle_size = CIRCLE_SIZE * (CIRCLE_DISAPPEAR_TIME - anim.anim_time) / CIRCLE_DISAPPEAR_TIME;
+        sprite.custom_size = Some(Vec2::new(circle_size, circle_size));
+    }
 }

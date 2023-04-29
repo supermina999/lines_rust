@@ -116,6 +116,41 @@ impl GameState {
         Some(path)
     }
 
+    pub fn process_disappearing_circles(&mut self) -> HashSet<(usize, usize)> {
+        let mut result: HashSet<(usize, usize)> = HashSet::new();
+        let deltas = [(-1, 0), (0, -1), (1, 1), (-1, 1)];
+        for row in 0..FIELD_SIZE {
+            for col in 0..FIELD_SIZE {
+                for delta in deltas {
+                    if let Some(line) = get_line(self, (row, col), delta, 5) {
+                        result.extend(line.into_iter());
+                    }
+                }
+            }
+        }
+        for (row, col) in &result {
+            self.cells[*row][*col].0 = -1;
+        }
+        return result;
+
+        fn get_line(game: &GameState, from: (usize, usize), delta: (i32, i32), len: i32) -> Option<Vec<(usize, usize)>> {
+            let to = (from.0 as i32 + delta.0 * len, from.1 as i32 + delta.1 * len);
+            if to.0 < 0 || to.0 >= FIELD_SIZE as i32 || to.1 < 0 || to.1 >= FIELD_SIZE as i32 {
+                return None;
+            }
+            let target_kind = game.cells[from.0][from.1].0;
+            let mut result: Vec<(usize, usize)> = Vec::with_capacity(len as usize);
+            for idx in 0..len {
+                result.push(((from.0 as i32 + delta.0 * idx) as usize, (from.1 as i32 + delta.1 * idx) as usize));
+                let last = result.last().unwrap();
+                if game.cells[last.0][last.1].0 != target_kind {
+                    return None;
+                }
+            }
+            Some(result)
+        }
+    }
+
     pub fn random_future_circles(&mut self, count: usize) -> Result<(), ()> {
         self.future_circles.clear();
         let free_cnt = self.get_free_count();

@@ -33,6 +33,8 @@ fn main() {
         .add_system(select_circle)
         .add_system(animate_selected_circle.before(select_circle))
         .add_system(move_animation)
+        .add_system(disappear_circles)
+        .add_system(disappear_animation)
         .run();
 }
 
@@ -41,13 +43,12 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn spawn_field(mut commands: Commands, textures: Res<Textures>) {
-    let cell_size = get_cell_size();
     for row in 0..FIELD_SIZE {
         for col in 0..FIELD_SIZE {
             let (x, y) = get_cell_coords(row, col);
             commands.spawn(SpriteBundle {
                 sprite: Sprite {
-                    custom_size: Some(Vec2::new(cell_size, cell_size)),
+                    custom_size: Some(Vec2::new(CELL_SIZE, CELL_SIZE)),
                     ..Default::default()
                 },
                 transform: Transform::from_translation(Vec3::new(x, y, 0.)),
@@ -88,7 +89,6 @@ fn next_turn_impl(commands: &mut Commands,
         commands.entity(entity).despawn();
     }
 
-    let cell_size = get_cell_size();
     let game_state = &mut **game_state;
     for circle in &game_state.future_circles {
         let cell = &mut game_state.cells[circle.row][circle.col];
@@ -99,7 +99,7 @@ fn next_turn_impl(commands: &mut Commands,
         let (x, y) = get_cell_coords(circle.row, circle.col);
         commands.spawn((SpriteBundle {
             sprite: Sprite {
-                custom_size: Some(Vec2::new(cell_size * 0.8, cell_size * 0.8)),
+                custom_size: Some(Vec2::new(CIRCLE_SIZE, CIRCLE_SIZE)),
                 ..Default::default()
             },
             transform: Transform::from_translation(Vec3::new(x, y, 2.)),
@@ -124,7 +124,7 @@ fn next_turn_impl(commands: &mut Commands,
         let (x, y) = get_cell_coords(circle.row, circle.col);
         commands.spawn((SpriteBundle {
             sprite: Sprite {
-                custom_size: Some(Vec2::new(cell_size / 4., cell_size / 4.)),
+                custom_size: Some(Vec2::new(CELL_SIZE / 4., CELL_SIZE / 4.)),
                 ..Default::default()
             },
             transform: Transform::from_translation(Vec3::new(x, y, 1.)),
@@ -132,6 +132,8 @@ fn next_turn_impl(commands: &mut Commands,
             ..Default::default()
         }, FutureCircleComponent));
     }
+
+    commands.spawn(DisappearComponent);
 }
 
 fn select_circle(mut commands: Commands,
@@ -151,14 +153,13 @@ fn select_circle(mut commands: Commands,
     pos.x -= WINDOW_WIDTH / 2.;
     pos.y -= WINDOW_HEIGHT / 2.;
 
-    let cell_size = get_cell_size();
     for (entity, circle) in query.iter() {
         let (x, y) = get_cell_coords(circle.row, circle.col);
-        if pos.x >= x - cell_size / 2. && pos.x <= x + cell_size / 2.
-        && pos.y >= y - cell_size / 2. && pos.y <= y + cell_size / 2. {
+        if pos.x >= x - CELL_SIZE / 2. && pos.x <= x + CELL_SIZE / 2.
+        && pos.y >= y - CELL_SIZE / 2. && pos.y <= y + CELL_SIZE / 2. {
             for (old_entity, mut old_sprite, mut old_transform, old_circle) in query_selected.iter_mut() {
                 commands.entity(old_entity).remove::<SelectedCircleComponent>();
-                old_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
+                old_sprite.custom_size = Some(Vec2::new(CIRCLE_SIZE, CIRCLE_SIZE));
                 let (old_x, old_y) = get_cell_coords(old_circle.row, old_circle.col);
                 (old_transform.translation.x, old_transform.translation.y) = (old_x, old_y);
             }
@@ -177,8 +178,8 @@ fn select_circle(mut commands: Commands,
         Err(_) => return
     };
 
-    let new_col = ((pos.x + WINDOW_WIDTH / 2.) / cell_size) as usize;
-    let new_row = ((pos.y + WINDOW_HEIGHT / 2.) / cell_size) as usize;
+    let new_col = ((pos.x + WINDOW_WIDTH / 2.) / CELL_SIZE) as usize;
+    let new_row = ((pos.y + WINDOW_HEIGHT / 2.) / CELL_SIZE) as usize;
     if new_col >= FIELD_SIZE || new_row >= FIELD_SIZE {
         return;
     }
@@ -190,7 +191,7 @@ fn select_circle(mut commands: Commands,
 
     game_state.cells[new_row][new_col] = game_state.cells[sel_circle.row][sel_circle.col];
     game_state.cells[sel_circle.row][sel_circle.col] = CellState(-1);
-    sel_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
+    sel_sprite.custom_size = Some(Vec2::new(CIRCLE_SIZE, CIRCLE_SIZE));
     (sel_transform.translation.x, sel_transform.translation.y) = get_cell_coords(sel_circle.row, sel_circle.col);
     (sel_circle.row, sel_circle.col) = (new_row, new_col);
     commands.entity(sel_entity).remove::<SelectedCircleComponent>();
@@ -198,4 +199,24 @@ fn select_circle(mut commands: Commands,
         path: path.unwrap(),
         anim_time: 0.
     });
+}
+
+fn disappear_circles(mut commands: Commands,
+                     query: Query<(Entity, &CircleComponent)>,
+                     disappear_query: Query<(Entity, &DisappearComponent)>,
+                     mut game_state: ResMut<GameState>) {
+    let entity = match disappear_query.get_single() {
+        Ok((entity, _)) => entity,
+        Err(_) => return
+    };
+    commands.entity(entity).despawn();
+
+    let disappear_set = game_state.process_disappearing_circles();
+    for (entity, circle) in query.iter() {
+        if disappear_set.contains(&(circle.row, circle.col)) {
+            commands.entity(entity).insert(DisappearAnimationComponent {
+                anim_time: 0.
+            });
+        }
+    }
 }
