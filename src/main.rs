@@ -144,6 +144,9 @@ struct SelectedCircleComponent {
 fn select_circle(mut commands: Commands,
                  query: Query<(Entity, &CircleComponent)>,
                  mut query_selected: Query<(Entity, &mut Sprite, &mut Transform, &CircleComponent), With<SelectedCircleComponent>>,
+                 query_future: Query<(Entity, &FutureCircleComponent)>,
+                 mut game_state: ResMut<GameState>,
+                 textures: Res<Textures>,
                  window_query: Query<&Window>,
                  mouse_button: Res<Input<MouseButton>>) {
     if !mouse_button.just_pressed(MouseButton::Left) {
@@ -157,9 +160,9 @@ fn select_circle(mut commands: Commands,
     pos.x -= WINDOW_WIDTH / 2.;
     pos.y -= WINDOW_HEIGHT / 2.;
 
+    let cell_size = get_cell_size();
     for (entity, circle) in query.iter() {
         let (x, y) = get_cell_coords(circle.row, circle.col);
-        let cell_size = get_cell_size();
         if pos.x >= x - cell_size / 2. && pos.x <= x + cell_size / 2.
         && pos.y >= y - cell_size / 2. && pos.y <= y + cell_size / 2. {
             for (old_entity, mut old_sprite, mut old_transform, old_circle) in query_selected.iter_mut() {
@@ -177,6 +180,25 @@ fn select_circle(mut commands: Commands,
             return;
         }
     }
+
+    let (sel_entity, mut sel_sprite, mut sel_transform, sel_circle) = match query_selected.get_single_mut() {
+        Ok(val) => val,
+        Err(_) => return
+    };
+
+    let new_col = ((pos.x + WINDOW_WIDTH / 2.) / cell_size) as usize;
+    let new_row = ((pos.y + WINDOW_HEIGHT / 2.) / cell_size) as usize;
+    if new_col >= FIELD_SIZE || new_row >= FIELD_SIZE {
+        return;
+    }
+
+    game_state.cells[new_row][new_col] = game_state.cells[sel_circle.row][sel_circle.col];
+    game_state.cells[sel_circle.row][sel_circle.col] = CellState(-1);
+    sel_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
+    (sel_transform.translation.x, sel_transform.translation.y) = get_cell_coords(new_row, new_col);
+    commands.entity(sel_entity).remove::<SelectedCircleComponent>();
+
+    next_turn(&mut commands, &query_future, &mut game_state, &textures);
 }
 
 fn animate_selected_circle(mut query: Query<(&mut SelectedCircleComponent, &mut Sprite, &mut Transform)>,

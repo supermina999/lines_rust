@@ -9,7 +9,8 @@ pub struct FutureCircle {
     pub col: usize
 }
 
-pub struct CellState(pub(crate) i32);
+#[derive(Clone, Copy)]
+pub struct CellState(pub i32);
 
 impl Default for CellState {
     fn default() -> Self {
