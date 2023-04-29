@@ -21,24 +21,22 @@ impl Default for CellState {
 #[derive(Resource)]
 pub struct GameState {
     pub cells: Vec<Vec<CellState>>,
-    pub future_circles: Vec<FutureCircle>
+    pub future_circles: Vec<FutureCircle>,
+    pub score: usize
 }
 
 impl Default for GameState {
     fn default() -> Self {
         GameState {
             cells: {
-                let mut cells: Vec<Vec<CellState>> = Vec::new();
+                let mut cells: Vec<Vec<CellState>> = Vec::with_capacity(FIELD_SIZE as usize);
                 for _ in 0..FIELD_SIZE {
-                    let mut row_cells: Vec<CellState> = Vec::new();
-                    for _ in 0..FIELD_SIZE {
-                        row_cells.push(CellState::default());
-                    }
-                    cells.push(row_cells);
+                    cells.push(vec![CellState::default(); FIELD_SIZE]);
                 }
                 cells
             },
-            future_circles: Vec::new()
+            future_circles: Vec::new(),
+            score: 0
         }
     }
 }
@@ -121,6 +119,9 @@ impl GameState {
         let deltas = [(-1, 0), (0, -1), (1, 1), (-1, 1)];
         for row in 0..FIELD_SIZE {
             for col in 0..FIELD_SIZE {
+                if self.cells[row][col].0 == -1 {
+                    continue;
+                }
                 for delta in deltas {
                     if let Some(line) = get_line(self, (row, col), delta, 5) {
                         result.extend(line.into_iter());
@@ -131,6 +132,7 @@ impl GameState {
         for (row, col) in &result {
             self.cells[*row][*col].0 = -1;
         }
+        self.score += result.len();
         return result;
 
         fn get_line(game: &GameState, from: (usize, usize), delta: (i32, i32), len: i32) -> Option<Vec<(usize, usize)>> {

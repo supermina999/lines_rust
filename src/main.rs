@@ -28,6 +28,7 @@ fn main() {
         .init_resource::<GameState>()
         .add_startup_system(spawn_camera)
         .add_startup_system(spawn_field)
+        .add_startup_system(spawn_score)
         .add_startup_system(make_initial_turns)
         .add_system(next_turn)
         .add_system(select_circle)
@@ -35,6 +36,7 @@ fn main() {
         .add_system(move_animation)
         .add_system(disappear_circles)
         .add_system(disappear_animation)
+        .add_system(score_update)
         .run();
 }
 
@@ -57,6 +59,28 @@ fn spawn_field(mut commands: Commands, textures: Res<Textures>) {
             });
         }
     }
+}
+
+fn spawn_score(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn(NodeBundle {
+        style: Style {
+            size: Size::new(Val::Percent(100.), Val::Px(WINDOW_HEIGHT - CELL_SIZE * FIELD_SIZE as f32)),
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..Default::default()
+        },
+        ..Default::default()
+    }).with_children(|parent| {
+        parent.spawn(TextBundle::from_section(
+            "",
+            TextStyle {
+                font: asset_server.load("FiraSans-Bold.ttf"),
+                font_size: 100.0,
+                color: Color::rgb(154. / 255., 193. / 255., 250. / 255.)
+            }));
+    });
 }
 
 fn make_initial_turns(mut commands: Commands,
@@ -219,4 +243,9 @@ fn disappear_circles(mut commands: Commands,
             });
         }
     }
+}
+
+fn score_update(mut query: Query<&mut Text>, game_state: Res<GameState>) {
+    let mut text = query.single_mut();
+    text.sections[0].value = format!("Score: {}", game_state.score);
 }
