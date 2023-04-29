@@ -200,6 +200,11 @@ fn select_circle(mut commands: Commands,
         return;
     }
 
+    let path = game_state.find_path((sel_circle.row, sel_circle.col), (new_row, new_col));
+    if path.is_none() {
+        return;
+    }
+
     game_state.cells[new_row][new_col] = game_state.cells[sel_circle.row][sel_circle.col];
     game_state.cells[sel_circle.row][sel_circle.col] = CellState(-1);
     sel_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
