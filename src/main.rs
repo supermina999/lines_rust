@@ -1,3 +1,4 @@
+use std::process::exit;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -98,7 +99,11 @@ fn next_turn_impl(commands: &mut Commands,
     let cell_size = get_cell_size();
     let game_state = &mut **game_state;
     for circle in &game_state.future_circles {
-        game_state.cells[circle.row][circle.col].0 = circle.kind;
+        let cell = &mut game_state.cells[circle.row][circle.col];
+        if cell.0 != -1 {
+            continue;
+        }
+        cell.0 = circle.kind;
         let (x, y) = get_cell_coords(circle.row, circle.col);
         commands.spawn((SpriteBundle {
             sprite: Sprite {
@@ -114,7 +119,10 @@ fn next_turn_impl(commands: &mut Commands,
         }));
     }
 
-    game_state.random_future_circles(CIRCLES_PER_TURN).unwrap();
+    if game_state.random_future_circles(CIRCLES_PER_TURN).is_err() {
+        println!("Game Over");
+        exit(0);
+    }
 
     if !spawn_future {
         return;
@@ -142,8 +150,8 @@ struct SelectedCircleComponent {
 }
 
 fn select_circle(mut commands: Commands,
-                 query: Query<(Entity, &CircleComponent)>,
-                 mut query_selected: Query<(Entity, &mut Sprite, &mut Transform, &CircleComponent), With<SelectedCircleComponent>>,
+                 query: Query<(Entity, &CircleComponent), Without<SelectedCircleComponent>>,
+                 mut query_selected: Query<(Entity, &mut Sprite, &mut Transform, &mut CircleComponent), With<SelectedCircleComponent>>,
                  query_future: Query<(Entity, &FutureCircleComponent)>,
                  mut game_state: ResMut<GameState>,
                  textures: Res<Textures>,
@@ -169,8 +177,7 @@ fn select_circle(mut commands: Commands,
                 commands.entity(old_entity).remove::<SelectedCircleComponent>();
                 old_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
                 let (old_x, old_y) = get_cell_coords(old_circle.row, old_circle.col);
-                old_transform.translation.x = old_x;
-                old_transform.translation.y = old_y;
+                (old_transform.translation.x, old_transform.translation.y) = (old_x, old_y);
             }
             commands.entity(entity).insert(SelectedCircleComponent {
                 row: circle.row,
@@ -181,7 +188,8 @@ fn select_circle(mut commands: Commands,
         }
     }
 
-    let (sel_entity, mut sel_sprite, mut sel_transform, sel_circle) = match query_selected.get_single_mut() {
+    let (sel_entity, mut sel_sprite, mut sel_transform, mut sel_circle) =
+        match query_selected.get_single_mut() {
         Ok(val) => val,
         Err(_) => return
     };
@@ -196,6 +204,7 @@ fn select_circle(mut commands: Commands,
     game_state.cells[sel_circle.row][sel_circle.col] = CellState(-1);
     sel_sprite.custom_size = Some(Vec2::new(cell_size * 0.8, cell_size * 0.8));
     (sel_transform.translation.x, sel_transform.translation.y) = get_cell_coords(new_row, new_col);
+    (sel_circle.row, sel_circle.col) = (new_row, new_col);
     commands.entity(sel_entity).remove::<SelectedCircleComponent>();
 
     next_turn(&mut commands, &query_future, &mut game_state, &textures);
